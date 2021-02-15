@@ -6,6 +6,7 @@ from gym import spaces
 from gym.utils import seeding
 from scipy.spatial.transform import Rotation as R
 import pyglet
+import random
 
 from config import Config
 from ACEnvironment import ACEnvironment2D
@@ -86,7 +87,7 @@ class DubinsAC2Denv(gym.Env):
 
         self._blueAC.takeaction(cmd_bank_deg, 0, self._vel_mps, self._action_time_s) # aircraft takes action based on bank command
 
-        self._redAC.takeaction(0, 0, self._vel_mps/2, self._action_time_s)
+        self._redAC.takeaction(0, 0, self._vel_mps, self._action_time_s)
         """In part below red aircraft bounces back from edges of map to stay in sight of user"""
         if self._redAC._pos_m[0] > self.window_width:
             self._redAC._heading_rad = np.mod(self._redAC._heading_rad - np.pi/2, 2*np.pi)
@@ -114,7 +115,7 @@ class DubinsAC2Denv(gym.Env):
         pos[0] += 200
         pos[1] += 200
         self._redAC = ACEnvironment2D(position=np.array([pos[0], pos[1], 0]),
-                                      vel_mps=self._vel_mps/2,
+                                      vel_mps=self._vel_mps,
                                       heading_deg=head)
 
         bpos, bhead = self._random_pos()
@@ -134,7 +135,7 @@ class DubinsAC2Denv(gym.Env):
     def render(self, mode='human'):
         
         self.d_min = 25
-        self.d_max = 300
+        self.d_max = 150
         from gym.envs.classic_control import rendering
 
         if self.viewer is None:
@@ -274,17 +275,23 @@ class DubinsAC2Denv(gym.Env):
 
 
     def _terminal_reward_2(self): # before assignment hatası
-        INFO = 'win/loss'
+        INFO = 'win/loss' # değiştirilecek
         REWARD = 0 # credit: kerem aydın
         DAMAGE_redAC = 0
         distance_ = math.sqrt((self.Bpos[0]-self.Rpos[0])**2 + (self.Bpos[1]-self.Rpos[1])**2) # distance between two aircrafts
         TERMINALSTATE = False
         # UnboundLocalError: local variable 'reward' referenced before assignment hatası çözüldü: if loopundan önce initialize edildi ve başka isimle kullanıldı
         if self.ATA_deg < 60 and self.AA_deg < 30 and self.d_min < distance_ < self.d_max: # dominant area, blue win (for how much duration? 1 action-time?)
-            REWARD = 100
-            DAMAGE_redAC = 1
+            if random.random() < 0.8: # chance to hit enemy in dominant area
+              REWARD = 100
+              DAMAGE_redAC = 1
+              print('Red aircraft was hit!\n')
+            else:
+              REWARD = 50
+              DAMAGE_redAC = 0
+              print('Missed gunfire on red aircraft!\n')
         elif self.ATA_deg > 120 and self.AA_deg > 150 and self.d_min < distance_ < self.d_max:
-            REWARD = -100
+            REWARD = -500
             print(' Blue has been dominated!')
             TERMINALSTATE = True
         elif self.Bpos[0] > self.window_height: # x ekseninde üst limit aşılırsa
@@ -314,12 +321,12 @@ class DubinsAC2Denv(gym.Env):
 
     def _calc_posDiff_hdg_rad(self, start: np.array, dest: np.array):
 
-        posDiff = dest - start
+        posDiff = dest - start # dest, start? 
         angleDiff = np.arctan2(posDiff[1], posDiff[0])
 
         distance = np.linalg.norm( posDiff )
 
-        return posDiff, distance, angleDiff
+        return posDiff, distance, angleDiff # anglediff = LOS_deg
 
     def _calc_posDiff_hdg_deg(self, start: np.array, dest: np.array):
 

@@ -38,7 +38,7 @@ def dqn(n_episodes=1000, max_t=1000, eps_start=1.0, eps_end=0.001, eps_decay=0.9
 
     for i_episode in range(1, n_episodes+1): # episode loop
 		# get current state from environment
-        state = env.reset() # It returns an initial observation
+        state = env.reset() # It returns an initial observation (random)
         score = 0 # score at the start of new episode
         damage_red = 0 # damage dealt to red AC at the start of new episode
 	  # play a sequence (1 episode)
@@ -49,11 +49,12 @@ def dqn(n_episodes=1000, max_t=1000, eps_start=1.0, eps_end=0.001, eps_decay=0.9
             # env.step(action): Step the environment by one timestep. Return
             # observation, reward and done
             env.render() # will display a popup window
+            time.sleep(.01)
             next_state, reward, done, damage, _ = env.step(action)
             agent.step(state, action, reward, next_state, done)
             state = next_state
-            score += reward
-            damage_red += damage
+            score += reward # total score in current episode
+            damage_red += damage # total damage on red aircraft in current episode
             if damage_red == 3:   # health bar implementation on red AC
                 done = True
             if done:
@@ -70,8 +71,8 @@ def dqn(n_episodes=1000, max_t=1000, eps_start=1.0, eps_end=0.001, eps_decay=0.9
             print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)))
             elapsed_time = time.time() - start_time
             print("Duration: ", elapsed_time)
-        if np.mean(scores_window)>=200.0:
-            print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode-100, np.mean(scores_window)))
+        if np.mean(scores_window)>= 200 and i_episode >= 100:
+            print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)))
             torch.save(agent.qnetwork_local.state_dict(), 'checkpoint.pth') # Function to save model parameters
             break
     elapsed_time = time.time() - start_time
