@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 DebugInfo = True
 RenderSteps = True
-import time
+from time import sleep
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -25,10 +25,9 @@ if __name__ == '__main__':
     reward_history = []
     score = 0
     damage_red = 0
-    # temp_r = temp_s = temp_d = 0
-    # index_di = 0
-    # Run environment with arbitrary actions for testing purposes
+    temp_r = temp_s = temp_d = index_di = 0
     for i in range(10000):
+        sleep(.5)
 
         state, reward, terminate, damage, info = env.step(
             env.action_space.sample())  # take a random action
@@ -40,17 +39,22 @@ if __name__ == '__main__':
         if RenderSteps:
             env.render()
         if DebugInfo:
-            # if(reward == temp_r and score == temp_s and damage == temp_d):
-            # index_di += 1
-            # else:
-            # print({'reward': temp_r, 'score': temp_s, 'damage': temp_d}, "x", index_di)
-            # temp_r = reward
-            # temp_s = score
-            # temp_d = damage
-            # print({'reward': reward, 'score': score, 'damage': damage_red})
-            print({'reward': reward, 'score': score, 'damage': damage_red})
+            if (reward == temp_r and score == temp_s and damage == temp_d):
+                index_di += 1
+            else:
+                if index_di != 0:
+                    print(
+                        f"{index_di:5}{'x    |':10}reward: {temp_r:<5}\tscore: {temp_s:<5} damage: {temp_d:<5}"
+                    )
+                temp_r = reward
+                temp_s = score
+                temp_d = damage
+                index_di = 0
+                print(
+                    f"{'reward:':>22} {temp_r:<5}\tscore: {temp_s:<5} damage: {temp_d:<5}"
+                )
         if damage_red == 3:  # health bar implementation on red AC (aynı anda hepsini vuruyor, incelenecek)
-            print("Blue wins! Dominated!")
+            print("\n[DOM] Blue")
             terminate = True
         if terminate:
 

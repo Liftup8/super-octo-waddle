@@ -11,18 +11,6 @@ import random
 from config import Config
 from ACEnvironment import ACEnvironment2D
 
-# class Image(rendering.Geom):
-# def __init__(self, fname, width, height):
-# Geom.__init__(self)
-# self.set_color(1.0, 1.0, 1.0)
-# self.width = width
-# self.height = height
-# img = pyglet.image.load(fname)
-# self.img = img
-# self.flip = False
-# def render1(self):
-# self.img.blit(-self.width/2, -self.height/2, width=self.width, height=self.height)
-
 
 class DubinsAC2Denv(gym.Env):
     # gym.Env creates an environment that follows gym interface
@@ -84,6 +72,8 @@ class DubinsAC2Denv(gym.Env):
                                            dtype=np.float32)
 
         self.seed(2)
+        self.d_min = 25
+        self.d_max = 150
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -153,17 +143,24 @@ class DubinsAC2Denv(gym.Env):
 
     def render(self, mode='human'):
 
-        self.d_min = 25
-        self.d_max = 150
         from gym.envs.classic_control import rendering
 
         if self.viewer is None:
             self.viewer = rendering.Viewer(self.window_width,
                                            self.window_height)
+            display = pyglet.canvas.Display()
+            screen = display.get_default_screen()
+            screen_width = screen.width
+            screen_height = screen.height
+            self.viewer.window.set_location(
+                screen_width - self.window_height // 2,
+                screen_height - self.window_height // 2)
             self.viewer.set_bounds(0, self.window_width, 0, self.window_height)
 
-        # if self.drone is None:
-        #     return None
+        @self.viewer.window.event
+        def on_key_press(symbol, modifiers):
+            if symbol == pyglet.window.key.Q:
+                self.viewer.close()
 
         import os
         __location__ = os.path.realpath(
@@ -173,17 +170,52 @@ class DubinsAC2Denv(gym.Env):
         pos, _, att, pos_hist = self._redAC.get_sta()
         red_ac_img = rendering.Image(
             os.path.join(__location__, 'images/f16_red.png'), 48, 48)
-        red_ac_img._color.vec4 = (1, 1, 1, 1
-                                  )  # siyah renk hatası giderildi / 15.02
+        red_ac_img._color.vec4 = (1, 1, 1, 1)
         jtransform = rendering.Transform(rotation=-att[2],
                                          translation=np.array([pos[1],
                                                                pos[0]]))
         red_ac_img.add_attr(jtransform)
         self.viewer.onetime_geoms.append(red_ac_img)
-        self.viewer.draw_polyline(pos_hist[::5, [-2, -3]], )  # draws line
+        foo = len(pos_hist) - 200 if len(pos_hist) > 200 else 0
+        self.viewer.draw_polyline(pos_hist[foo::5, [-2, -3]],
+                                  color=(0.9, 0.15, 0.2),
+                                  linewidth=1.5)
+        foo1 = (pos[1], pos[0])
+        foo2 = (pos[1] + np.cos(-att[2] + np.deg2rad(30) + np.pi / 2) * 150,
+                pos[0] + np.sin(-att[2] + np.deg2rad(30) + np.pi / 2) * 150)
+        foo3 = (pos[1] + np.cos(-att[2] - np.deg2rad(30) + np.pi / 2) * 150,
+                pos[0] + np.sin(-att[2] - np.deg2rad(30) + np.pi / 2) * 150)
+        test = self.viewer.draw_polygon((foo1, foo2, foo3))
+        index = 0
+        test._color.vec4 = (.9, .15, .2, .3)
 
         # transform2 = rendering.Transform(translation=(self.goal_pos[1], self.goal_pos[0]))  # Relative offset
-        # self.viewer.draw_circle().add_attr(transform2) # uçağın merkezindeki nokta yok edildi / 15.02
+        # self.viewer.draw_circle().add_attr(transform2)
+
+        gridx = np.arange(0, self.window_width + 1, self.window_width)
+        gridy = np.arange(0, self.window_height + 1, self.window_height)
+        ystep = 5
+        xstep = 5
+        for foo in np.linspace(0, self.window_height, ystep * 5 + 1):
+            self.viewer.draw_line((0, foo), (self.window_width, foo),
+                                  color=(.8, .8, .8))
+        for foo in np.linspace(0, self.window_width, xstep * 5 + 1):
+            self.viewer.draw_line((foo, 0), (foo, self.window_height),
+                                  color=(.8, .8, .8))
+        for foo in np.linspace(0, self.window_height, ystep + 1):
+            test = self.viewer.draw_line((0, foo), (self.window_width, foo))
+            test.linewidth.stroke = 2
+        for foo in np.linspace(0, self.window_width, xstep + 1):
+            test = self.viewer.draw_line((foo, 0), (foo, self.window_height))
+            test.linewidth.stroke = 2
+
+        label = pyglet.text.Label('Hello, world',
+                                  font_name='Times New Roman',
+                                  font_size=36,
+                                  x=10,
+                                  y=10)
+
+        label.draw()
 
         transform2 = rendering.Transform(
             translation=(self.goal_pos[1],
@@ -196,17 +228,27 @@ class DubinsAC2Denv(gym.Env):
 
         # draw blue aircraft
         pos, _, att, pos_hist = self._blueAC.get_sta()
-        self.viewer.draw_polyline(
-            pos_hist[::5, [-2, -3]])  # çizgi uçağın arkasına alındı \ 15.02
+        foo = len(pos_hist) - 200 if len(pos_hist) > 200 else 0
+        self.viewer.draw_polyline(pos_hist[foo::5, [-2, -3]],
+                                  color=(0.00, 0.28, 0.73),
+                                  linewidth=1.5)
         blue_ac_img = rendering.Image(
             os.path.join(__location__, 'images/f16_blue.png'), 48, 48)
-        blue_ac_img._color.vec4 = (1, 1, 1, 1
-                                   )  # siyah renk hatası giderildi / 15.02
+        blue_ac_img._color.vec4 = (1, 1, 1, 1)
         jtransform = rendering.Transform(rotation=-att[2],
                                          translation=np.array([pos[1],
                                                                pos[0]]))
         blue_ac_img.add_attr(jtransform)
         self.viewer.onetime_geoms.append(blue_ac_img)
+
+        # Cones
+        foo1 = (pos[1], pos[0])
+        foo2 = (pos[1] + np.cos(-att[2] + np.deg2rad(30) + np.pi / 2) * 150,
+                pos[0] + np.sin(-att[2] + np.deg2rad(30) + np.pi / 2) * 150)
+        foo3 = (pos[1] + np.cos(-att[2] - np.deg2rad(30) + np.pi / 2) * 150,
+                pos[0] + np.sin(-att[2] - np.deg2rad(30) + np.pi / 2) * 150)
+        test = self.viewer.draw_polygon((foo1, foo2, foo3))
+        test._color.vec4 = (0.30, 0.65, 1.00, .3)
 
         return self.viewer.render()
 
@@ -305,8 +347,8 @@ class DubinsAC2Denv(gym.Env):
                         dtype=np.float32)
 
     def _terminal_reward_2(self):  # before assignment hatası
-        INFO = 'win/loss'  # değiştirilecek
-        REWARD = 0  # credit: kerem aydın
+        INFO = 'win/loss'
+        REWARD = 0
         DAMAGE_redAC = 0
         distance_ = math.sqrt(
             (self.Bpos[0] - self.Rpos[0])**2 +
@@ -317,33 +359,18 @@ class DubinsAC2Denv(gym.Env):
             if random.random() < 0.8:  # chance to hit enemy in dominant area
                 REWARD = 100
                 DAMAGE_redAC = 1
-                print('Red aircraft was hit!\n')
+                print('\n[HIT] Red')
             else:
                 REWARD = 50
                 DAMAGE_redAC = 0
-                print('Missed gunfire on red aircraft!\n')
+                print('\n[MISS] Blue')
         elif self.ATA_deg > 120 and self.AA_deg > 150 and self.d_min < distance_ < self.d_max:
             REWARD = -500
-            print(' Blue has been dominated!')
+            print('\n[DOM] Red')
             TERMINALSTATE = True
-        elif self.Bpos[
-                0] > self.window_height:  # x ekseninde üst limit aşılırsa
-            # blueac position source # pozisyona erişilemiyor # x dikey eksen y yatay eksen
+        if (any(self.Bpos < 0) or any(self.Bpos > self.window_height)):
+            print('\n[OOB] Blue')
             REWARD = -100
-            print(' Blue is out of defined limits (Exceeded upper limit)')
-            TERMINALSTATE = True
-        elif self.Bpos[0] < 0:  # x ekseninde negatif tarafa geçilirse
-            REWARD = -100
-            print(' Blue is out of defined limits (Exceeded lower limit)')
-            TERMINALSTATE = True
-        elif self.Bpos[1] > self.window_width:  # y ekseninde üst limit aşılırsa
-            # blueac position source # pozisyona erişilemiyor # x dikey eksen y yatay eksen
-            REWARD = -100
-            print(' Blue is out of defined limits (Exceeded rightmost limit)')
-            TERMINALSTATE = True
-        elif self.Bpos[1] < 0:  # y ekseninde negatif tarafa geçilirse
-            REWARD = -100
-            print(' Blue is out of defined limits (Exceeded leftmost limit)')
             TERMINALSTATE = True
 
 
