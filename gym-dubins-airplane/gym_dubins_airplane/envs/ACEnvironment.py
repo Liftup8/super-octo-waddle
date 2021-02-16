@@ -33,7 +33,8 @@ class ACEnvironment2D:
     _dt = 0.1  # seconds,  simulation time step
     _t = 0.
 
-    def __init__(self, position=np.array([0., 0., 0]),
+    def __init__(self,
+                 position=np.array([0., 0., 0]),
                  heading_deg=0.,
                  vel_mps=0):
 
@@ -60,14 +61,16 @@ class ACEnvironment2D:
         self._tau_flightpath_s = 0.05
         self._tau_vel_s = 1.5
 
-        self._t = 0. # initial time of simulation which is 0
+        self._t = 0.  # initial time of simulation which is 0
 
-    def get_sta(self): # returns state of aircraft
+    def get_sta(self):  # returns state of aircraft
 
-        return np.array([self._pos_m.copy(),
-                         self._vel_mps,
-                         np.array([self._bank_rad, self._flightpath_rad, self._heading_rad], dtype=object),
-                         self._pos_history], dtype=object)
+        return np.array([
+            self._pos_m.copy(), self._vel_mps,
+            np.array([self._bank_rad, self._flightpath_rad, self._heading_rad],
+                     dtype=object), self._pos_history
+        ],
+                        dtype=object)
 
     def set_cmd_bank(self, cmd_deg):
         self._cmd_bank_rad = np.deg2rad(_pi_bound_deg(cmd_deg))
@@ -81,56 +84,75 @@ class ACEnvironment2D:
 
         self._cmd_vel_mps = cmd_mps
 
-    def simfor(self, Time_s): # state transition
+    def simfor(self, Time_s):
 
-        startTime = self._t 
-	# while loop ensures that action is executed for training time step
-        while self._t < (startTime + Time_s): # to  achieve next state run this loop for time_s duration # Ref: McGrew
-	    # which is defined as 0.25 seconds in environment based on studies in literature
-	    # simulation time step * 5 = training time step in which action is executed by agent to get new state
+        startTime = self._t
+        # while loop ensures that action is executed for training time step
+        while self._t < (
+                startTime + Time_s
+        ):  # to  achieve next state run this loop for time_s duration
+            # which is defined as 0.25 seconds in environment based on studies in literature
+            # simulation time step * 5 = training time step in which action is executed by agent to get new state
 
-            vx = self._vel_mps * np.cos(self._flightpath_rad) * np.cos(self._heading_rad)
-            vy = self._vel_mps * np.cos(self._flightpath_rad) * np.sin(self._heading_rad)
+            vx = self._vel_mps * np.cos(self._flightpath_rad) * np.cos(
+                self._heading_rad)
+            vy = self._vel_mps * np.cos(self._flightpath_rad) * np.sin(
+                self._heading_rad)
             vz = -self._vel_mps * np.sin(self._flightpath_rad)
 
-            self._pos_m[0] = self._pos_m[0] + self._dt * vx # x position
-            self._pos_m[1] = self._pos_m[1] + self._dt * vy # y position
-            self._pos_m[2] = self._pos_m[2] + self._dt * vz # z position
+            self._pos_m[0] = self._pos_m[0] + self._dt * vx  # x position
+            self._pos_m[1] = self._pos_m[1] + self._dt * vy  # y position
+            self._pos_m[2] = self._pos_m[2] + self._dt * vz  # z position
 
             if self._vel_mps > 0:  # eger bir hiz varsa degisim olacak aksi durumda sifira bolme
-                heading_dot_rad = 9.81 / self._vel_mps * np.tan(self._bank_rad) * np.cos(self._flightpath_rad)
+                heading_dot_rad = 9.81 / self._vel_mps * np.tan(
+                    self._bank_rad) * np.cos(self._flightpath_rad)
             else:
                 heading_dot_rad = 0
             bank_dot = (self._cmd_bank_rad - self._bank_rad) / self._tau_bank_s
-            flightpath_dot = (self._cmd_flightpath_rad - self._flightpath_rad) / self._tau_flightpath_s
-            vel_dot = (self._cmd_vel_mps - self._vel_mps) / self._tau_vel_s # change of velocity with time
+            flightpath_dot = (self._cmd_flightpath_rad -
+                              self._flightpath_rad) / self._tau_flightpath_s
+            vel_dot = (self._cmd_vel_mps - self._vel_mps
+                       ) / self._tau_vel_s  # change of velocity with time
 
             self._bank_rad += self._dt * bank_dot
             self._flightpath_rad += self._dt * flightpath_dot
             self._heading_rad += self._dt * heading_dot_rad
             self._vel_mps += self._dt * vel_dot
 
-            self._pos_history = np.append( self._pos_history, [self._pos_m], axis=0 )
+            self._pos_history = np.append(self._pos_history, [self._pos_m],
+                                          axis=0)
             #self._pos_history = np.concatenate((self._pos_history, self._pos_m), axis=0)
 
-            self._t += self._dt # increases current simulation time by 0.05 seconds
+            self._t += self._dt  # increases current simulation time by 0.05 seconds
 
-        return np.array([self._pos_m.copy(), # position data of aircraft
-                         self._vel_mps, # velocity of aircraft 
-                         np.array([self._bank_rad, self._flightpath_rad, self._heading_rad], dtype=object),
-			 # bank, flight path and heading angle of aircraft
-                         self._pos_history], dtype=object) # historic position data
+        return np.array(
+            [
+                self._pos_m.copy(),  # position data of aircraft
+                self._vel_mps,  # velocity of aircraft 
+                np.array(
+                    [self._bank_rad, self._flightpath_rad, self._heading_rad],
+                    dtype=object),
+                # bank, flight path and heading angle of aircraft
+                self._pos_history
+            ],
+            dtype=object)  # historic position data
 
     def sim(self, simTime_s):
 
         self.reset()
         return self.simfor(simTime_s)
 
-    def takeaction(self, cmd_bank_deg, cmd_flightpath, cmd_vel_mps, actiontime):
+    def takeaction(self, cmd_bank_deg, cmd_flightpath, cmd_vel_mps,
+                   actiontime):
 
-        self.set_cmd_bank(cmd_bank_deg) # calls set_cmd_bank for cmd_bank_deg input which is bank angle command
-        # by line above self._cmd_bank_rad = np.deg2rad(_pi_bound_deg(cmd_bank_deg))  
+        self.set_cmd_bank(
+            cmd_bank_deg
+        )  # calls set_cmd_bank for cmd_bank_deg input which is bank angle command
+        # by line above self._cmd_bank_rad = np.deg2rad(_pi_bound_deg(cmd_bank_deg))
         self.set_cmd_flightpath(cmd_flightpath)
         self.set_cmd_vel(cmd_vel_mps)
 
-        return self.simfor(actiontime)  # sim for 5 simulation time steps to get the results of an action
+        return self.simfor(
+            actiontime
+        )  # sim for 5 simulation time steps to get the results of an action

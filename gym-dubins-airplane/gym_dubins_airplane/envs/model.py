@@ -5,9 +5,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class QNetwork(nn.Module):
     """Actor (Policy) Model."""
-
     def __init__(self, state_size, action_size, seed):
         """Initialize parameters and build model.
         Params
@@ -23,9 +23,8 @@ class QNetwork(nn.Module):
         self.fc3 = nn.Linear(256, 128)
         self.fc4 = nn.Linear(128, action_size)
 
-        
     # In the forward function, you define how your model is going to be run, from input to output
-    # The forward method is called from the __call__ function of nn.Module, 
+    # The forward method is called from the __call__ function of nn.Module,
     # so that when we run model(input), the forward method is called.
     def forward(self, state):
         x = F.relu(self.fc1(state))

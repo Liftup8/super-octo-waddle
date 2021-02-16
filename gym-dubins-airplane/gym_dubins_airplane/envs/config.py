@@ -7,12 +7,14 @@ class Config:
 
     # input dim
     # arena koordinatları anlaşılmadı
-    window_width  = 800 # pixels
-    window_height = 800 # pixels
-    window_z = 800 # pixels
-    diagonal      = 800  # this one is used to normalize dist_to_intruder
+    window_width = 800  # pixels
+    window_height = 800  # pixels
+    window_z = 800  # pixels
+    diagonal = 800  # this one is used to normalize dist_to_intruder
     tick = 30
     scale = 30
+    d_min = 25 # minimum distance between aircrafts for gunfire (dangerous circle)
+    d_max = 300 # maximum distance between aircrafts for gunfire (outer circle)
 
     # distance param
     minimum_separation = 555 / scale
@@ -33,10 +35,9 @@ class Config:
 
     # reward setting
     position_reward = 10. / 10.
-    heading_reward  = 10 / 10.
+    heading_reward = 10 / 10.
 
     collision_penalty = -5. / 10
-    outside_penalty   = -1. / 10
+    outside_penalty = -1. / 10
 
-
-    step_penalty      = -0.01 / 10
+    step_penalty = -0.01 / 10
