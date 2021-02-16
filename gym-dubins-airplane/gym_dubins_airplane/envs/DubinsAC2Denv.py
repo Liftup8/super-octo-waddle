@@ -79,11 +79,11 @@ class DubinsAC2Denv(gym.Env):
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
-
-    def step(
-        self, action
-    ):  # by using input action, environment returns an observation and reward_sca
         """ This function returns new state, reward_sca, terminal info for one training time step. Output of env.step function returns new line per training time step"""
+
+    def step(self, action):
+        # by using input action, environment returns an observation and reward
+        """ This function returns new state, reward, terminal info for one training time step. Output of env.step function returns new line per training time step"""
         assert self.action_space.contains(action)
         cmd_bank_deg = (action - 7) * 90 / 7  # bank angle command to blue ac
         # action takes values from 0 to 14
@@ -160,40 +160,10 @@ class DubinsAC2Denv(gym.Env):
             screen_width = screen.width
             screen_height = screen.height
             self.viewer.window.set_location(
-                screen_width - self.window_height // 2,
+                screen_width - self.window_width // 2,
                 screen_height - self.window_height // 2)
             self.viewer.set_bounds(0, self.window_width, 0, self.window_height)
 
-        import os
-        __location__ = os.path.realpath(
-            os.path.join(os.getcwd(), os.path.dirname(__file__)))
-
-        # draw red aircraft
-        pos, _, att, pos_hist = self._redAC.get_sta()
-        red_ac_img = rendering.Image(
-            os.path.join(__location__, 'images/f16_red.png'), 48, 48)
-        red_ac_img._color.vec4 = (1, 1, 1, 1
-                                  )  # siyah renk hatası giderildi / 15.02
-        jtransform = rendering.Transform(rotation=-att[2],
-                                         translation=np.array([pos[1],
-                                                               pos[0]]))
-        red_ac_img.add_attr(jtransform)
-        self.viewer.onetime_geoms.append(red_ac_img)
-        foo = len(pos_hist) - 200 if len(pos_hist) > 200 else 0
-        self.viewer.draw_polyline(pos_hist[foo::5, [-2, -3]],
-                                  color=(0.9, 0.15, 0.2),
-                                  linewidth=1.5)
-        foo1 = (pos[1], pos[0])
-        foo2 = (pos[1] + np.cos(-att[2] + np.deg2rad(30) + np.pi / 2) * 150,
-                pos[0] + np.sin(-att[2] + np.deg2rad(30) + np.pi / 2) * 150)
-        foo3 = (pos[1] + np.cos(-att[2] - np.deg2rad(30) + np.pi / 2) * 150,
-                pos[0] + np.sin(-att[2] - np.deg2rad(30) + np.pi / 2) * 150)
-        test = self.viewer.draw_polygon((foo1, foo2, foo3))
-        index = 0
-        test._color.vec4 = (.9, .15, .2, .3)
-
-        # transform2 = rendering.Transform(translation=(self.goal_pos[1], self.goal_pos[0]))  # Relative offset
-        # self.viewer.draw_circle(1).add_attr(transform2) # uçağın merkezindeki nokta yok edildi / 15.02
         gridx = np.arange(0, self.window_width + 1, self.window_width)
         gridy = np.arange(0, self.window_height + 1, self.window_height)
         ystep = 5
@@ -211,6 +181,32 @@ class DubinsAC2Denv(gym.Env):
             test = self.viewer.draw_line((foo, 0), (foo, self.window_height))
             test.linewidth.stroke = 2
 
+        @self.viewer.window.event
+        def on_key_press(symbol, modifiers):
+            if symbol == pyglet.window.key.Q:
+                self.viewer.close()
+
+        import os
+        __location__ = os.path.realpath(
+            os.path.join(os.getcwd(), os.path.dirname(__file__)))
+
+        # draw red aircraft
+        pos, _, att, pos_hist = self._redAC.get_sta()
+        red_ac_img = rendering.Image(
+            os.path.join(__location__, 'images/f16_red.png'), 48, 48)
+        jtransform = rendering.Transform(rotation=-att[2],
+                                         translation=np.array([pos[1],
+                                                               pos[0]]))
+        red_ac_img.add_attr(jtransform)
+        self.viewer.onetime_geoms.append(red_ac_img)
+        foo = len(pos_hist) - 200 if len(pos_hist) > 200 else 0
+        self.viewer.draw_polyline(pos_hist[foo::5, [-2, -3]],
+                                  color=(0.9, 0.15, 0.2),
+                                  linewidth=1.5)
+        self.red_cone = self.make_cone(pos, att[2])
+        self.red_cone._color.vec4 = (.9, .15, .2, .3)
+
+        # transform2 = rendering.Transform(translation=(self.goal_pos[1], self.goal_pos[0]))  # Relative offset
         transform2 = rendering.Transform(
             translation=(self.goal_pos[1],
                          self.goal_pos[0]))  # Relative offset
@@ -228,24 +224,28 @@ class DubinsAC2Denv(gym.Env):
                                   linewidth=1.5)
         blue_ac_img = rendering.Image(
             os.path.join(__location__, 'images/f16_blue.png'), 48, 48)
-        blue_ac_img._color.vec4 = (1, 1, 1, 1
-                                   )  # siyah renk hatası giderildi / 15.02
         jtransform = rendering.Transform(rotation=-att[2],
                                          translation=np.array([pos[1],
                                                                pos[0]]))
         blue_ac_img.add_attr(jtransform)
         self.viewer.onetime_geoms.append(blue_ac_img)
 
-        # Attack cones
-        foo1 = (pos[1], pos[0])
-        foo2 = (pos[1] + np.cos(-att[2] + np.deg2rad(30) + np.pi / 2) * 150,
-                pos[0] + np.sin(-att[2] + np.deg2rad(30) + np.pi / 2) * 150)
-        foo3 = (pos[1] + np.cos(-att[2] - np.deg2rad(30) + np.pi / 2) * 150,
-                pos[0] + np.sin(-att[2] - np.deg2rad(30) + np.pi / 2) * 150)
-        test = self.viewer.draw_polygon((foo1, foo2, foo3))
-        test._color.vec4 = (0.30, 0.65, 1.00, .3)
+        self.blue_cone = self.make_cone(pos, att[2])
+        self.blue_cone._color.vec4 = (0.30, 0.65, 1.00, .3)
 
         return self.viewer.render()
+
+    def make_cone(self, position, head):
+        foo1 = (position[1], position[0])
+        foo2 = (position[1] +
+                np.cos(-head + np.deg2rad(30) + np.pi / 2) * self.d_max,
+                position[0] +
+                np.sin(-head + np.deg2rad(30) + np.pi / 2) * self.d_max)
+        foo3 = (position[1] +
+                np.cos(-head - np.deg2rad(30) + np.pi / 2) * self.d_max,
+                position[0] +
+                np.sin(-head - np.deg2rad(30) + np.pi / 2) * self.d_max)
+        return self.viewer.draw_polygon((foo1, foo2, foo3))
 
     def close(self):
         if self.viewer:
@@ -387,6 +387,13 @@ class DubinsAC2Denv(gym.Env):
                 print(' Aircrafts crashed into each other! Reward: {}'.format(
                     reward_sca))
                 TERMINALSTATE = True
+        if self.ATA_deg < 60 and self.AA_deg < 30 and self.d_min < distance_ < self.d_max:  # dominant area, blue win (for how much duration? 1 action-time?)
+            if random.random() < 0.8:  # chance to hit enemy in dominant area
+                REWARD = 100
+                DAMAGE_redAC = 1
+                print('\n[HIT] Red')
+                self.red_cone._color.vec4 = (1, 1, 1, .6)
+                self.blue_cone._color.vec4 = (1, 1, 1, .6)
             else:
                 TERMINALSTATE = False
 
