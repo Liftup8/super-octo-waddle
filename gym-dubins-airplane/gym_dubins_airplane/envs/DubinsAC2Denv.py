@@ -98,7 +98,7 @@ class DubinsAC2Denv(gym.Env):
 	# terminal(or done): A boolean value stating whether it’s time to reset the environment again
 
 
-    def reset(self):
+    def reset(self): # env.reset() sets new episode initial position by random
         pos , head = self._random_pos2()
         pos[0] += 200
         pos[1] += 200
@@ -122,8 +122,8 @@ class DubinsAC2Denv(gym.Env):
 
     def render(self, mode='human'):
         
-        self.d_min = 25
-        self.d_max = 150
+        self.r_min = 25
+        self.r_max = 150
         from gym.envs.classic_control import rendering
 
         if self.viewer is None:
@@ -149,10 +149,10 @@ class DubinsAC2Denv(gym.Env):
         self.viewer.draw_circle(1).add_attr(transform2) # uçağın merkezindeki nokta yok edildi / 15.02
 
         transform2 = rendering.Transform(translation=(self.goal_pos[1], self.goal_pos[0]))  # Relative offset
-        self.viewer.draw_circle(self.d_min,filled=False).add_attr(transform2)
+        self.viewer.draw_circle(self.r_min,filled=False).add_attr(transform2)
 
         transform3 = rendering.Transform(translation=(pos[1], pos[0]))  # red dangerous circle
-        self.viewer.draw_circle(self.d_max,filled=False).add_attr(transform3)
+        self.viewer.draw_circle(self.r_max,filled=False).add_attr(transform3)
 
 
         # draw blue aircraft
@@ -271,7 +271,7 @@ class DubinsAC2Denv(gym.Env):
         distance_ = math.sqrt((self.Bpos[0]-self.Rpos[0])**2 + (self.Bpos[1]-self.Rpos[1])**2) # distance between two aircrafts
         TERMINALSTATE = False
         # UnboundLocalError: local variable 'reward' referenced before assignment hatası çözüldü: if loopundan önce initialize edildi ve başka isimle kullanıldı
-        if self.ATA_deg < 60 and self.AA_deg < 30 and self.d_min < distance_ < self.d_max: # dominant area, blue win (for how much duration? 1 action-time?)
+        if 0 < self.ATA_deg < 60 and 0 < self.AA_deg < 30 and self.d_min < distance_ < self.d_max: # dominant area, blue win (for how much duration? 1 action-time?)
             if random.random() < 0.8: # chance to hit enemy in dominant area
               REWARD = 100
               DAMAGE_redAC = 1
@@ -280,7 +280,7 @@ class DubinsAC2Denv(gym.Env):
               REWARD = 50
               DAMAGE_redAC = 0
               print('Missed gunfire on red aircraft!\n')
-        elif self.ATA_deg > 120 and self.AA_deg > 150 and self.d_min < distance_ < self.d_max:
+        elif 180 > self.ATA_deg > 120 and 180 > self.AA_deg > 150 and self.d_min < distance_ < self.d_max:
             REWARD = -500
             print(' Blue has been dominated!')
             TERMINALSTATE = True
@@ -327,7 +327,7 @@ class DubinsAC2Denv(gym.Env):
 
         return pos, dist, np.rad2deg(angle)
 
-    def _distance(red, start: np.array, target: np.array):
+    def _distance(red, start: np.array, target: np.array):  
 
         return np.linalg.norm(target - start)
 

@@ -49,7 +49,7 @@ def dqn(n_episodes=1000, max_t=1000, eps_start=1.0, eps_end=0.001, eps_decay=0.9
             # env.step(action): Step the environment by one timestep. Return
             # observation, reward and done
             env.render() # will display a popup window
-            time.sleep(.01)
+            time.sleep(.01) # to speed up render
             next_state, reward, done, damage, _ = env.step(action)
             agent.step(state, action, reward, next_state, done)
             state = next_state
@@ -65,8 +65,10 @@ def dqn(n_episodes=1000, max_t=1000, eps_start=1.0, eps_end=0.001, eps_decay=0.9
         if damage_red == 3:
           print("Blue wins! Dominated!")
           print('\rEpisode {}\tReward in Episode: {:.2f} \tAverage Score {:.2f}\n\n'.format(i_episode, score, np.mean(scores_window)), end="")
+          # tırtıklı hat eklenecek
         else:
           print('\rEpisode {}\tReward in Episode: {:.2f} \tAverage Score {:.2f}\n\n'.format(i_episode, score, np.mean(scores_window)), end="")
+          # tırtıklı hat eklenecek
         if i_episode % 100 == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)))
             elapsed_time = time.time() - start_time

@@ -81,11 +81,11 @@ class ACEnvironment2D:
 
         self._cmd_vel_mps = cmd_mps
 
-    def simfor(self, Time_s): 
+    def simfor(self, Time_s): # state transition
 
-        startTime = self._t
+        startTime = self._t 
 	# while loop ensures that action is executed for training time step
-        while self._t < (startTime + Time_s): # to  achieve next state run this loop for time_s duration
+        while self._t < (startTime + Time_s): # to  achieve next state run this loop for time_s duration # Ref: McGrew
 	    # which is defined as 0.25 seconds in environment based on studies in literature
 	    # simulation time step * 5 = training time step in which action is executed by agent to get new state
 
