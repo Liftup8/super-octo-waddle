@@ -27,7 +27,7 @@ if __name__ == '__main__':
     damage_red = 0
     temp_r = temp_s = temp_d = index_di = 0
     for i in range(10000):
-        sleep(.5)
+        sleep(.2)
 
         state, reward, _, terminate, damage, info = env.step(
             env.action_space.sample())  # take a random action
