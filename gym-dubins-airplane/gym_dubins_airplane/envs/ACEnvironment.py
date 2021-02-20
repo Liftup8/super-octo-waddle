@@ -63,7 +63,8 @@ class ACEnvironment2D:
 
         self._t = 0.  # initial time of simulation which is 0
 
-    def get_sta(self):  # returns state of aircraft
+    def get_sta(self):
+        # returns state of aircraft
 
         return np.array([
             self._pos_m.copy(), self._vel_mps,
@@ -88,9 +89,8 @@ class ACEnvironment2D:
 
         startTime = self._t
         # while loop ensures that action is executed for training time step
-        while self._t < (
-                startTime + Time_s
-        ):  # to  achieve next state run this loop for time_s duration
+        while self._t < (startTime + Time_s):
+            # to  achieve next state run this loop for time_s duration
             # which is defined as 0.25 seconds in environment based on studies in literature
             # simulation time step * 5 = training time step in which action is executed by agent to get new state
 

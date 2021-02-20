@@ -194,19 +194,19 @@ class DubinsAC3Denvv1(gym.Env):
             1, 0, 0)
 
         transform2 = rendering.Transform(
-            translation=(self.goal_pos[1] * scaleY,
-                         self.goal_pos[0] * scaleX))  # Relative offset
+            translation=(self.goal_pos[1] * scaleY, self.goal_pos[0] * scaleX))
+        # Relative offset
         self.viewer.draw_circle(50 * scaleX).add_attr(transform2)
 
         transform2 = rendering.Transform(
-            translation=(self.goal_pos[1] * scaleY,
-                         self.goal_pos[0] * scaleX))  # Relative offset
+            translation=(self.goal_pos[1] * scaleY, self.goal_pos[0] * scaleX))
+        # Relative offset
         self.viewer.draw_circle(300 * scaleX,
                                 filled=False).add_attr(transform2)
 
-        transform3 = rendering.Transform(
-            translation=(pos[1] * scaleY,
-                         pos[0] * scaleX))  # red dangerous circle
+        transform3 = rendering.Transform(translation=(pos[1] * scaleY,
+                                                      pos[0] * scaleX))
+        # red dangerous circle
         self.viewer.draw_circle(2000 * scaleX,
                                 filled=False).add_attr(transform3)
 

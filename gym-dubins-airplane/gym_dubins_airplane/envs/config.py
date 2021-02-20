@@ -1,20 +1,22 @@
 import math
+import numpy as np
 
 
 class Config:
     G = 9.8
     EPISODES = 1000
 
+    red_health = 0
+    blue_health = 0
     # input dim
-    # arena koordinatları anlaşılmadı
     window_width = 800  # pixels
     window_height = 800  # pixels
     window_z = 800  # pixels
     diagonal = 800  # this one is used to normalize dist_to_intruder
     tick = 30
     scale = 30
-    d_min = 25 # minimum distance between aircrafts for gunfire (dangerous circle)
-    d_max = 300 # maximum distance between aircrafts for gunfire (outer circle)
+    d_min = 25  # minimum distance between aircrafts for gunfire (dangerous circle)
+    d_max = 300  # maximum distance between aircrafts for gunfire (outer circle)
 
     # distance param
     minimum_separation = 555 / scale
@@ -22,6 +24,9 @@ class Config:
     horizon_dist = 4000 / scale
     initial_min_dist = 3000 / scale
     goal_radius = 600 / scale
+
+    dist_norm = 800
+    deg_norm = np.pi
 
     # speed
     min_speed = 50 / scale
