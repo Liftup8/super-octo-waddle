@@ -2,7 +2,7 @@ import numpy as np
 import random
 
 from model import QNetwork
-from replay_buffer import ReplayBuffer # importing uniform sampling 
+from replay_buffer import ReplayBuffer
 
 import torch
 import torch.nn as nn
@@ -12,17 +12,17 @@ import math
 import operator
 
 BUFFER_SIZE = int(1e5)  # replay buffer size
-BATCH_SIZE = 64  # minibatch size
+BATCH_SIZE = 128  # minibatch size
 GAMMA = 0.999  # discount factor
 TAU = 1e-3  # for soft update of target parameters
 LR = 5e-4  # learning rate
-UPDATE_NN_EVERY = 4  # how often to update the network
+UPDATE_NN_EVERY = 1  # how often to update the network
 
-# # prioritized experience replay
-# UPDATE_MEM_EVERY = 20  # how often to update the priorities
-# UPDATE_MEM_PAR_EVERY = 3000  # how often to update the hyperparameters
-# EXPERIENCES_PER_SAMPLING = math.ceil(BATCH_SIZE * UPDATE_MEM_EVERY /
-                                     # UPDATE_NN_EVERY)
+# prioritized experience replay
+UPDATE_MEM_EVERY = 20  # how often to update the priorities
+UPDATE_MEM_PAR_EVERY = 3000  # how often to update the hyperparameters
+EXPERIENCES_PER_SAMPLING = math.ceil(BATCH_SIZE * UPDATE_MEM_EVERY /
+                                     UPDATE_NN_EVERY)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -41,7 +41,7 @@ class Agent():
         self.state_size = state_size
         self.action_size = action_size
         self.seed = random.seed(seed)
-        # self.compute_weights = compute_weights
+        self.compute_weights = compute_weights
         
         # Algorithms to enable during training
         self.PrioritizedReplayBuffer = True # Use False to enable uniform sampling
@@ -59,17 +59,19 @@ class Agent():
         # Replay memory
         # building the experience replay memory used to avoid training instability issues
         # Below: PER
-        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE,seed)
+        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE,
+                                   EXPERIENCES_PER_SAMPLING, seed,
+                                   compute_weights)
                                    
         # Below: Uniform by method defined in this script
         #self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed)
         
         # Initialize time step (for updating every UPDATE_NN_EVERY steps)
         self.t_step_nn = 0
-        # # Initialize time step (for updating every UPDATE_MEM_PAR_EVERY steps)
-        # self.t_step_mem_par = 0
-        # # Initialize time step (for updating every UPDATE_MEM_EVERY steps)
-        # self.t_step_mem = 0
+        # Initialize time step (for updating every UPDATE_MEM_PAR_EVERY steps)
+        self.t_step_mem_par = 0
+        # Initialize time step (for updating every UPDATE_MEM_EVERY steps)
+        self.t_step_mem = 0
 
     def step(self, state, action, reward, next_state, done):
         # Save experience in replay memory
@@ -77,17 +79,17 @@ class Agent():
 
         # Learn every UPDATE_NN_EVERY time steps.
         self.t_step_nn = (self.t_step_nn + 1) % UPDATE_NN_EVERY
-        # self.t_step_mem = (self.t_step_mem + 1) % UPDATE_MEM_EVERY
-        # self.t_step_mem_par = (self.t_step_mem_par + 1) % UPDATE_MEM_PAR_EVERY
-        # if self.t_step_mem_par == 0:
-            # self.memory.update_parameters()
+        self.t_step_mem = (self.t_step_mem + 1) % UPDATE_MEM_EVERY
+        self.t_step_mem_par = (self.t_step_mem_par + 1) % UPDATE_MEM_PAR_EVERY
+        if self.t_step_mem_par == 0:
+            self.memory.update_parameters()
         if self.t_step_nn == 0:
             # If enough samples are available in memory, get random subset and learn
-            if len(self.memory) > BATCH_SIZE:
-                experiences = self.memory.sample()
-                self.learn(experiences, GAMMA)
-        # if self.t_step_mem == 0:
-            # self.memory.update_memory_sampling()
+            if self.memory.experience_count > EXPERIENCES_PER_SAMPLING:
+                sampling = self.memory.sample()
+                self.learn(sampling, GAMMA)
+        if self.t_step_mem == 0:
+            self.memory.update_memory_sampling()
 
     def act(self, state, eps=0.):
         """A function to select an action based on the Epsilon greedy policy. Epislon percent of times the agent will select a random
@@ -113,16 +115,16 @@ class Agent():
         else:
             return random.choice(np.arange(self.action_size))
 
-    def learn(self, experiences, gamma):
+    def learn(self, sampling, gamma):
         """Update value parameters using given batch of experience tuples.
         Function for training the neural network. The function will update the weights of the newtwork
 
         Params
         ======
-            experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples 
+            sampling (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples 
             gamma (float): discount factor
         """
-        states, actions, rewards, next_states, dones = experiences
+        states, actions, rewards, next_states, dones, weights, indices = sampling
 
         # Target (absolute) Q values from target Q network
         q_target = self.qnetwork_target(next_states).detach().max(
@@ -133,10 +135,10 @@ class Agent():
         # computing the loss
         loss = F.mse_loss(output,
                           expected_values)  # Loss Function: Mean Square Error
-        # if self.compute_weights:
-            # with torch.no_grad():
-                # weight = sum(np.multiply(weights, loss.data.cpu().numpy()))
-            # loss *= weight
+        if self.compute_weights:
+            with torch.no_grad():
+                weight = sum(np.multiply(weights, loss.data.cpu().numpy()))
+            loss *= weight
         # Minimizing the loss by optimizer
         self.optimizer.zero_grad()
         loss.backward()
@@ -145,9 +147,9 @@ class Agent():
         self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)
 
         # ------------------- update priorities ------------------- #
-        # delta = abs(expected_values - output.detach()).cpu().numpy()
-        # #print("delta", delta)
-        # self.memory.update_priorities(delta, indices)
+        delta = abs(expected_values - output.detach()).cpu().numpy()
+        #print("delta", delta)
+        self.memory.update_priorities(delta, indices)
 
     def soft_update(self, local_model, target_model, tau):
         """Soft update model parameters.
@@ -176,17 +178,6 @@ class Agent():
       self.qnetwork_local.load_model(policy_net_filename)
       self.qnetwork_target.load_model(target_net_filename)
       
-    # def state_norm(self, state):
-      # state[0] = state[0]/800
-      # state[1] = state[1]/800
-      # state[2] = state[2]/np.pi
-      # state[3] = state[3]/np.pi
-      # state[4] = state[4]/np.pi
-      # state[5] = state[5]/np.pi
-      # state[6] = state[6]/np.pi
-      # state[7] = state[7]/np.pi
-      
-      # return np.array(state)      
 # class ReplayBuffer:
     # """Fixed-size buffer to store experience tuples."""
 
@@ -228,3 +219,4 @@ class Agent():
     # def __len__(self):
         # """Return the current size of internal memory."""
         # return len(self.memory)
+  

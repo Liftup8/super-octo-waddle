@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from config import Config
 
 
 def _pi_bound_deg(u):
@@ -30,7 +31,7 @@ class ACEnvironment2D:
     _tau_flightpath_s = None
     _tau_vel_s = None
 
-    _dt = 0.1  # seconds,  simulation time step
+    _dt = Config.action_time/5  # seconds,  simulation time step
     _t = 0.
 
     def __init__(self,
@@ -63,7 +64,8 @@ class ACEnvironment2D:
 
         self._t = 0.  # initial time of simulation which is 0
 
-    def get_sta(self):  # returns state of aircraft
+    def get_sta(self):
+        # returns state of aircraft
 
         return np.array([
             self._pos_m.copy(), self._vel_mps,
@@ -88,10 +90,9 @@ class ACEnvironment2D:
 
         startTime = self._t
         # while loop ensures that action is executed for training time step
-        while self._t < (
-                startTime + Time_s
-        ):  # to  achieve next state run this loop for time_s duration
-            # which is defined as 0.25 seconds in environment based on studies in literature
+        while self._t < (startTime + Time_s):
+            # to  achieve next state run this loop for time_s duration
+            # which is defined as 0.5 seconds in environment based on studies in literature
             # simulation time step * 5 = training time step in which action is executed by agent to get new state
 
             vx = self._vel_mps * np.cos(self._flightpath_rad) * np.cos(
@@ -124,7 +125,7 @@ class ACEnvironment2D:
                                           axis=0)
             #self._pos_history = np.concatenate((self._pos_history, self._pos_m), axis=0)
 
-            self._t += self._dt  # increases current simulation time by 0.05 seconds
+            self._t += self._dt  # increases current simulation time by 0.1 seconds
 
         return np.array(
             [

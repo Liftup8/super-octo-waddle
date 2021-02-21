@@ -7,12 +7,15 @@ from gym.utils import seeding
 from scipy.spatial.transform import Rotation as R
 import pyglet
 import random
+from agent import GAMMA
 
 from config import Config
 from ACEnvironment import ACEnvironment2D
 
+
 Sca_RewOpt = True  # enabling scalar rewards (for testing purposes)
-Pot_RewOpt = True  # enbaling shaping rewards (for testing purposes)
+Pot_RewOpt = False  # enbaling shaping rewards (for testing purposes)
+
 
 
 class DubinsAC2Denv(gym.Env):
@@ -31,8 +34,8 @@ class DubinsAC2Denv(gym.Env):
         self._load_config()
         self.viewer = None  # related to rendering the episode
 
-        self._vel_mps = 20  # velocity in terms of pixel/s
-        self._action_time_s = 0.5  # time step in environment
+        self._vel_mps = Config.vel_mps  # velocity in terms of pixel/s
+        self._action_time_s = Config.action_time  # time step in environment, every maneuvering decision is made after 0.5s
         self.actionIntegral = 0
 
         # 'err_x': spaces.Box(low=-self.area_width, high=self.area_width, shape=(1,), dtype=np.float32),
@@ -65,7 +68,7 @@ class DubinsAC2Denv(gym.Env):
             dtype=np.float32)  # creating the observation space
 
         if actions == 'discrete':  # using discrete actions
-            self.action_space = spaces.Discrete(15)
+            self.action_space = spaces.Discrete(Config.action_size)
 # there are action values from 0 to 14 to enable both negative and positive bank angles along with creating 6 different bank angle values
 # from 0 to 90 degrees
         else:
@@ -79,21 +82,31 @@ class DubinsAC2Denv(gym.Env):
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
-        """ This function returns new state, reward_sca, terminal info for one training time step. Output of env.step function returns new line per training time step"""
 
     def step(self, action):
         # by using input action, environment returns an observation and reward
-        """ This function returns new state, reward, terminal info for one training time step. Output of env.step function returns new line per training time step"""
+        """ This function returns new state, reward, terminal info for 
+        one training time step. Output of env.step function returns 
+        new line per training time step"""
+        
+        # Here we take position, ATA and AA deg values at S_t to find reward for S_t
+        # At this point variables in problem are in S_t, will step up to S_t+1 by takeaction method 
+        reward_S_t = self.shaping_reward() 
+        
+        
         assert self.action_space.contains(action)
-        cmd_bank_deg = (action - 7) * 90 / 7  # bank angle command to blue ac
+        
+        cmd_bank_deg = (action - (Config.action_size-1)/2) * 90/((Config.action_size-1)/2)   # bank angle command to blue ac
         # action takes values from 0 to 14
 
         self._blueAC.takeaction(
             cmd_bank_deg, 0, self._vel_mps,
             self._action_time_s)  # aircraft takes action based on bank command
+            # take action returns position, velocity and basic angle values for t+1
 
-        self._redAC.takeaction(0, 0, self._vel_mps, self._action_time_s)
-        """In part below red aircraft bounces back from edges of map to stay in sight of user"""
+        self._redAC.takeaction(0, 0, self._vel_mps/2, self._action_time_s)
+        """In part below red aircraft bounces back from edges of map 
+        to stay in sight of user"""
         if self._redAC._pos_m[0] > self.window_width:
             self._redAC._heading_rad = np.mod(
                 self._redAC._heading_rad - np.pi / 2, 2 * np.pi)
@@ -109,26 +122,32 @@ class DubinsAC2Denv(gym.Env):
                 self._redAC._heading_rad + np.pi / 2, 2 * np.pi)
 
         self.actionIntegral += (cmd_bank_deg * cmd_bank_deg * 0.5 * 0.0001)
+        
 
         envSta = self._get_sta_env_v2(
-        )  # envSta list is what will be fed into Q-network
+        )  
+        # envSta list is what will be fed into Q-network
+        # this method returns derived features, so called state variables of DQN, for t+1
 
-        reward_sca, terminal, damage, info = self.scalar_reward()
+        reward_sca, terminal, damage = self.scalar_reward()
 
-        reward_shap = self.shaping_reward()
+        reward_shap = GAMMA * self.shaping_reward() - reward_S_t
 
-        return envSta, reward_sca, reward_shap, terminal, damage, info
+        return envSta, reward_sca, reward_shap, terminal, damage
 
 
 # info: diagnostic information useful for debugging
 # terminal(or done): A boolean value stating whether it’s time to reset the environment again
 
     def reset(self):  # env.reset() sets new episode initial position by random
+      # reset chooses random initial position and basic angles
+      # then returns derived features
+        """env.reset() returns basic positions, angles and features by random"""
         pos, head = self._random_pos2()
         pos[0] += 200
         pos[1] += 200
         self._redAC = ACEnvironment2D(position=np.array([pos[0], pos[1], 0]),
-                                      vel_mps=self._vel_mps,
+                                      vel_mps=self._vel_mps/2,
                                       heading_deg=head)
 
         bpos, bhead = self._random_pos()
@@ -143,6 +162,9 @@ class DubinsAC2Denv(gym.Env):
             position=np.array([bpos[0], bpos[1], 0]),
             vel_mps=self._vel_mps,
             heading_deg=bhead)  # creates _blueAC object from class
+
+        self.blue_health = 0
+        self.red_health = 0
 
         return self._get_sta_env_v2()
 
@@ -160,8 +182,8 @@ class DubinsAC2Denv(gym.Env):
             screen_width = screen.width
             screen_height = screen.height
             self.viewer.window.set_location(
-                screen_width - self.window_width // 2,
-                screen_height - self.window_height // 2)
+                (screen_width - self.window_width) // 2,
+                (screen_height - self.window_height) // 2)
             self.viewer.set_bounds(0, self.window_width, 0, self.window_height)
 
         gridx = np.arange(0, self.window_width + 1, self.window_width)
@@ -194,6 +216,7 @@ class DubinsAC2Denv(gym.Env):
         pos, _, att, pos_hist = self._redAC.get_sta()
         red_ac_img = rendering.Image(
             os.path.join(__location__, 'images/f16_red.png'), 48, 48)
+        red_ac_img._color.vec4 = (1, 1, 1, 1)
         jtransform = rendering.Transform(rotation=-att[2],
                                          translation=np.array([pos[1],
                                                                pos[0]]))
@@ -224,6 +247,7 @@ class DubinsAC2Denv(gym.Env):
                                   linewidth=1.5)
         blue_ac_img = rendering.Image(
             os.path.join(__location__, 'images/f16_blue.png'), 48, 48)
+        blue_ac_img._color.vec4 = (1, 1, 1, 1)
         jtransform = rendering.Transform(rotation=-att[2],
                                          translation=np.array([pos[1],
                                                                pos[0]]))
@@ -232,6 +256,25 @@ class DubinsAC2Denv(gym.Env):
 
         self.blue_cone = self.make_cone(pos, att[2])
         self.blue_cone._color.vec4 = (0.30, 0.65, 1.00, .3)
+
+        blue_red = self.viewer.draw_polygon(
+            ((720, 80), (720, 112), (496 + self.red_health * 64, 112),
+             (496 + self.red_health * 64, 80)))
+        blue_red._color.vec4 = (0.30, 0.65, 1.00, 0.8 - .25 * self.blue_health)
+        blue_red = self.viewer.draw_polyline(
+            ((720, 80), (720, 112), (496, 112), (496, 80), (720, 80)),
+            color=(0.00, 0.00, 0.00),
+            linewidth=3)
+
+        health_red = self.viewer.draw_polygon(
+            ((80, 80), (80, 112), (304 - self.red_health * 64, 112),
+             (304 - self.red_health * 64, 80)))
+        health_red._color.vec4 = (0.83, 0.13, 0.18,
+                                  0.8 - .25 * self.red_health)
+        health_red = self.viewer.draw_polyline(
+            ((80, 80), (80, 112), (304, 112), (304, 80), (80, 80)),
+            color=(0.00, 0.00, 0.00),
+            linewidth=3)
 
         return self.viewer.render()
 
@@ -264,6 +307,10 @@ class DubinsAC2Denv(gym.Env):
         self.max_steps = Config.max_steps  # maximum training timesteps
         self.d_min = Config.d_min
         self.d_max = Config.d_max
+        self.dist_norm = Config.dist_norm  # to normalize distance
+        self.deg_norm = Config.deg_norm  # to normalize degrees between pi and -pi
+        self.blue_health = Config.blue_health
+        self.red_health = Config.red_health
 
     def _random_pos(self):
         pos0 = np.array([self.window_width / 4, self.window_height / 4])
@@ -280,8 +327,8 @@ class DubinsAC2Denv(gym.Env):
                                       self.window_height * 0.5
                                   ])), np.random.uniform(low=-180, high=180))
 
-    def _get_sta_env_v2(
-            self):  # returns state of blue aircraft which is the input of DQN
+    def _get_sta_env_v2(self):
+        # returns state of blue aircraft which is the input of DQN
         # this function creates features based on angles
         Rpos, Rvel, self.Ratt_rad, _ = self._redAC.get_sta()
         Bpos, Bvel, self.Batt_rad, _ = self._blueAC.get_sta()
@@ -296,33 +343,31 @@ class DubinsAC2Denv(gym.Env):
 
         self.errPos, self.errDist, _ = self._calc_posDiff_hdg_rad(
             Bpos, self.goal_pos)
-        _, _, self.LOS_deg = self._calc_posDiff_hdg_rad(Bpos, Rpos)
+        _, _, self.LOS_rad = self._calc_posDiff_hdg_rad(Bpos, Rpos)
 
         self.ATA_deg = np.rad2deg(
-            self._pi_bound(self.LOS_deg - self.Batt_rad[2]))
+            self._pi_bound(self.LOS_rad - self.Batt_rad[2]))
         self.AA_deg = np.rad2deg(
-            self._pi_bound(self.Ratt_rad[2] - self.LOS_deg))
+            self._pi_bound(self.Ratt_rad[2] - self.LOS_rad))
 
-        self.LOS_deg = np.rad2deg(self._pi_bound(self.LOS_deg))
+        self.LOS_deg = np.rad2deg(self._pi_bound(self.LOS_rad))
 
         _, self.targetDist, self.redATA_deg = self._calc_posDiff_hdg_rad(
             Rpos, Bpos)
         self.redATA_deg = np.rad2deg(
             self._pi_bound(self.redATA_deg - self.Ratt_rad[2]))
 
-        return np.array(
+        return np.array(  # this array is output of env.reset() command
             [
-                self.errPos[0],  # removed redATA_deg from feature vector 
-                self.errPos[1],
-                self.LOS_deg,
-                self.ATA_deg,
-                self.AA_deg,
+                self.errPos[0], self.errPos[1], self.LOS_deg, self.ATA_deg,
+                self.AA_deg, self.redATA_deg,
                 np.rad2deg(self.Batt_rad[2]),
                 np.rad2deg(self.Batt_rad[0])
             ],
             dtype=np.float32)
 
-    def _get_sta_env_v2_redAC(self):  # return state of red aircraft
+    def _get_sta_env_v2_redAC(self):
+        # return state of red aircraft
         Rpos, Rvel, self.Ratt_rad, _ = self._redAC.get_sta()
         Bpos, Bvel, self.Batt_rad, _ = self._blueAC.get_sta()
 
@@ -333,12 +378,12 @@ class DubinsAC2Denv(gym.Env):
         goal_pos = Bpos - target_dist
 
         errPos, errDist, _ = self._calc_posDiff_hdg_rad(Rpos, goal_pos)
-        _, _, LOS_deg = self._calc_posDiff_hdg_rad(Rpos, Bpos)
+        _, _, LOS_rad = self._calc_posDiff_hdg_rad(Rpos, Bpos)
 
-        ATA_deg = np.rad2deg(self._pi_bound(LOS_deg - self.Ratt_rad[2]))
-        AA_deg = np.rad2deg(self._pi_bound(self.Batt_rad[2] - LOS_deg))
+        ATA_deg = np.rad2deg(self._pi_bound(LOS_rad - self.Ratt_rad[2]))
+        AA_deg = np.rad2deg(self._pi_bound(self.Batt_rad[2] - LOS_rad))
 
-        LOS_deg = np.rad2deg(self._pi_bound(LOS_deg))
+        LOS_deg = np.rad2deg(self._pi_bound(LOS_rad))
 
         _, targetDist, redATA_deg = self._calc_posDiff_hdg_rad(Bpos, Rpos)
         redATA_deg = np.rad2deg(self._pi_bound(redATA_deg - self.Batt_rad[2]))
@@ -355,45 +400,39 @@ class DubinsAC2Denv(gym.Env):
         INFO = 'win/loss'  # değiştirilecek
         reward_sca = 0
         DAMAGE_redAC = 0  # damage dealt on red aircraft
-        self.distance_ = math.sqrt(
-            (self.Bpos[0] - self.Rpos[0])**2 +
-            (self.Bpos[1] - self.Rpos[1])**2)  # distance between two aircrafts
         TERMINALSTATE = False
         if Sca_RewOpt:
-            if ((-30 < self.ATA_deg < 30) and (-15 < self.AA_deg < 15)
-                    and (self.d_min < self.distance_ <
-                         self.d_max)):  # dominant area, blue win
-                if random.random(
-                ) < 0.8:  # chance to hit enemy in dominant area
-                    reward_sca = 1
-                    DAMAGE_redAC = 1
-                    print(' \n[HIT] Red! Reward: {}\n'.format(reward_sca))
-                else:
-                    reward_sca = 0.5
-                    DAMAGE_redAC = 0
-                    print(' \n[MISS] Blue! Reward: {}\n'.format(reward_sca))
-            elif ((180 > self.ATA_deg > 120) and (180 > self.AA_deg > 150)
-                  and (self.d_min < self.distance_ < self.d_max)):  # lose
+            if abs(self.ATA_deg) < 60 and abs(self.AA_deg) < 30 and self.d_min < self.distance_ < self.d_max:  # dominant area, blue win
+                # if random.random(
+                # ) < 0.8:  # chance to hit enemy in dominant area
+                    # reward_sca = 1
+                    # DAMAGE_redAC = 1
+                    # print(' \n[HIT] Red! Reward: {}\n'.format(reward_sca))
+                # else:
+                    # reward_sca = 0.5
+                    # DAMAGE_redAC = 0
+                    # print(' \n[MISS] Blue! Reward: {}\n'.format(reward_sca))
+                reward_sca = 3
+                # print(' \n[DOM] Blue! Reward: {}'.format(reward_sca))
+                TERMINALSTATE = True
+            elif abs(self.ATA_deg) > 120 and abs(self.AA_deg) > 150 and self.d_min < self.distance_ < self.d_max:  # lose
                 reward_sca = -3
-                print(' \n[DOM] Red! Reward: {}'.format(reward_sca))
+                # print(' \n[DOM] Red! Reward: {}'.format(reward_sca))
+                # self.blue_health += 1
                 TERMINALSTATE = True
-            elif (any(self.Bpos < 0) or any(self.Bpos > self.window_height)
-                  ):  # exceeding limits of map
+            elif (any(self.Bpos < 0) or any(self.Bpos > self.window_height)):  # exceeding limits of map
                 reward_sca = -1
-                print('\n[OOB] Blue! Reward: {}'.format(reward_sca))
+                # print('\n[OOB] Blue! Reward: {}'.format(reward_sca))
                 TERMINALSTATE = True
-            elif self.distance_ <= self.d_min:  # collision
-                reward_sca = -2
-                print(' Aircrafts crashed into each other! Reward: {}'.format(
-                    reward_sca))
-                TERMINALSTATE = True
+            # elif self.distance_ <= self.d_min:  # collision
+                # reward_sca = -2
+                # print('\nAircrafts crashed into each other! Reward: {}'.format(reward_sca))
+                # TERMINALSTATE = True
             else:
                 TERMINALSTATE = False
+        # self.red_health += DAMAGE_redAC
 
-        return reward_sca, TERMINALSTATE, DAMAGE_redAC, {
-            'result': INFO,
-            'redObs': self._get_sta_env_v2_redAC()
-        }
+        return reward_sca, TERMINALSTATE, DAMAGE_redAC
 
     def shaping_reward(
             self):  # Method for calcualting potential based shaping reward
@@ -404,15 +443,19 @@ class DubinsAC2Denv(gym.Env):
         #O: orientation advantage function
         #T: time advantage function
         reward_pot = 0
+        self.distance_ = math.sqrt(
+            (self._blueAC._pos_m[0] - self._redAC._pos_m[0])**2 +
+            (self._blueAC._pos_m[1] - self._redAC._pos_m[1])**2)  # distance between two aircrafts
+        
         if Pot_RewOpt:
-            Ratt_yaw_deg = np.rad2deg(self.Ratt_rad[2])
-            deviation = self.LOS_deg - Ratt_yaw_deg
+            
             D = np.exp((-abs(self.distance_ - (self.d_max + self.d_min) / 2)) /
                        (180 * k))
-            O = 1 - (abs((deviation) + abs(self.AA_deg)) / 180)
-            reward_pot = D * O / 100  # Shaping reward
+            O = 1 - (abs((self.ATA_deg) + abs(self.AA_deg)) / 180)
+            reward_pot = D * O / 100 # Shaping reward
 
         return reward_pot
+    
 
     def _calc_posDiff_hdg_rad(self, start: np.array, dest: np.array):
 
